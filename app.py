@@ -1,9 +1,3 @@
-"""
-app.py — Flask web application for Birthday Wishes automation.
-Run: python app.py
-Then open http://localhost:5000 in your browser.
-"""
-
 import os
 import json
 import threading
@@ -18,7 +12,6 @@ from matcher import get_matches, validate_csv
 from send import send_all
 from scheduler import start_scheduler, update_schedule, get_next_run
 
-# ──────────────────────────────────────────────────────────────────────────────
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["MAX_CONTENT_LENGTH"] = 1024 ** 3   # 1 GB upload limit
 
@@ -27,21 +20,11 @@ ALLOWED_EXTENSIONS = {"csv"}
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# In-memory job state (simple; upgrade to Redis for multi-worker)
 _job_state = {"running": False, "progress": 0, "total": 0, "results": []}
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Pages
-# ──────────────────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
     return render_template("index.html")
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# CSV endpoints
-# ──────────────────────────────────────────────────────────────────────────────
 
 @app.route("/api/csv/upload", methods=["POST"])
 def upload_csv():
@@ -60,7 +43,6 @@ def upload_csv():
     save_config({"csv_path": str(dest)})
     logger.info(f"CSV uploaded: {dest}")
 
-    # Validate immediately
     try:
         validation = validate_csv(str(dest))
     except Exception as e:
@@ -87,9 +69,6 @@ def validate_current_csv():
         return jsonify({"error": str(e)}), 500
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Birthday match / send endpoints
-# ──────────────────────────────────────────────────────────────────────────────
 
 @app.route("/api/matches", methods=["GET"])
 def today_matches():
@@ -128,7 +107,7 @@ def send_emails():
     if not matches:
         return jsonify({"message": "No birthdays today. Nothing to send.", "sent": 0})
 
-    # Load template
+    
     template_path = Path("template.html")
     if not template_path.exists():
         return jsonify({"error": "template.html not found."}), 500
@@ -160,14 +139,11 @@ def send_status():
     return jsonify(_job_state)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Settings endpoints
-# ──────────────────────────────────────────────────────────────────────────────
 
 @app.route("/api/settings", methods=["GET"])
 def get_settings():
     config = load_config()
-    # Never expose the password to the frontend
+    
     safe   = {k: v for k, v in config.items() if k != "app_password"}
     safe["password_set"] = bool(config.get("app_password"))
     safe["next_run"]     = get_next_run()
@@ -185,7 +161,6 @@ def update_settings():
 
     save_config(updates)
 
-    # Apply scheduler changes live
     if "send_time" in updates or "auto_send" in updates or "timezone" in updates:
         update_schedule(
             send_time = updates.get("send_time"),
@@ -196,10 +171,6 @@ def update_settings():
     logger.info(f"Settings updated: {[k for k in updates if k != 'app_password']}")
     return jsonify({"message": "Settings saved.", "next_run": get_next_run()})
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Template management
-# ──────────────────────────────────────────────────────────────────────────────
 
 @app.route("/api/template", methods=["GET"])
 def get_template():
@@ -235,11 +206,6 @@ def upload_template_image():
     data_uri = f"data:image/{ext};base64," + b64encode(f.read()).decode()
     return jsonify({"data_uri": data_uri, "filename": secure_filename(f.filename)})
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Logs
-# ──────────────────────────────────────────────────────────────────────────────
-
 @app.route("/api/logs", methods=["GET"])
 def get_logs():
     """Return last N lines of the app log for the UI log viewer."""
@@ -252,12 +218,9 @@ def get_logs():
     return jsonify({"lines": [l.rstrip() for l in lines[-n:]]})
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Startup
-# ──────────────────────────────────────────────────────────────────────────────
-
 if __name__ == "__main__":
     start_scheduler()
     port = int(os.environ.get("PORT", 5000))
     logger.info(f"Starting Birthday Wishes app on http://localhost:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)
+
